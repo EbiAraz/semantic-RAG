@@ -121,7 +121,7 @@ class RAGEngine:
     def _detect_query_intent(self, query: str) -> str:
         q = query.lower().strip()
         factual_patterns = [
-            r"^(what|who|when|where|which)\b",
+            r"^(what|who|when|where|which|why|how many|how much)\b",
         ]
         definition_patterns = [
             r"\b(define|definition|stand for|meaning)\b",
@@ -176,6 +176,8 @@ class RAGEngine:
             return True
         if intent in {"factual", "definition"} and len(words) > CONFIG.max_answer_words_factual:
             return True
+        if intent == "life" and len(words) < 4:
+            return True
 
         if len(normalized) <= 1:
             return True
@@ -218,6 +220,9 @@ class RAGEngine:
         distress_signals = [
             "not good",
             "i feel bad",
+            "i feel lost",
+            "i need help",
+            "help me",
             "im stressed",
             "i am stressed",
             "im anxious",
@@ -230,6 +235,15 @@ class RAGEngine:
                 "Sorry you are feeling this way. Try one small reset now: drink water, take 10 slow breaths, "
                 "and do one easy task for 5 minutes. If you want, I can suggest a short plan for today."
             )
+
+        if "reduce stress" in normalized or "manage stress" in normalized:
+            return (
+                "To reduce stress, sleep on a regular schedule, take short daily walks, limit caffeine late in the day, "
+                "and break work into small tasks with short breaks."
+            )
+
+        if "what can you do" in normalized or "who are you" in normalized:
+            return "I can answer factual questions, explain concepts, and suggest practical steps for everyday problems."
 
         return None
 
