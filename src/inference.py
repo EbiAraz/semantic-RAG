@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -113,9 +114,38 @@ class RAGEngine:
         np.save(embeddings_path, embeddings)
         return embeddings
 
+    def _detect_query_intent(self, query: str) -> str:
+        q = query.lower().strip()
+        factual_patterns = [
+            r"^(what|who|when|where|which)\b",
+            r"\b(define|definition|stand for|meaning)\b",
+        ]
+        life_patterns = [
+            r"\bhow can i\b",
+            r"\bhow do i\b",
+            r"\b(improve|better|habit|routine|stress|sleep|well-being|relationship|motivation)\b",
+        ]
+
+        if any(re.search(pattern, q) for pattern in life_patterns):
+            return "life"
+        if any(re.search(pattern, q) for pattern in factual_patterns):
+            return "factual"
+        return "general"
+
+    def _intent_bonus(self, intent: str, doc_index: int) -> float:
+        squad_limit = CONFIG.dataset_corpus_limit
+        is_squad = doc_index < squad_limit
+
+        if intent == "factual" and is_squad:
+            return 0.05
+        if intent == "life" and not is_squad:
+            return 0.05
+        return 0.0
+
     def retrieve(self, query: str, top_k: int | None = None) -> list[dict]:
         k = top_k or CONFIG.top_k
         candidate_k = max(k, CONFIG.retrieval_candidate_k)
+        intent = self._detect_query_intent(query)
         query_embedding = self._encode_texts([query])
         semantic_scores = np.matmul(self.chunk_embeddings, query_embedding[0])
 
@@ -125,18 +155,24 @@ class RAGEngine:
         semantic_top_indices = semantic_scores.argsort()[::-1][:candidate_k]
         reranked = []
         for idx in semantic_top_indices:
-            combined_score = (
+            base_score = (
                 CONFIG.rerank_semantic_weight * float(semantic_scores[idx])
                 + CONFIG.rerank_lexical_weight * float(lexical_scores[idx])
             )
+            doc_index = int(self.chunks[int(idx)]["doc_index"])
+            score = base_score + self._intent_bonus(intent, doc_index)
             reranked.append(
                 {
                     "document": self.chunks[int(idx)]["text"],
-                    "score": combined_score,
+                    "score": score,
+                    "base_score": base_score,
+                    "intent_bonus": score - base_score,
                     "semantic_score": float(semantic_scores[idx]),
                     "lexical_score": float(lexical_scores[idx]),
                     "index": int(idx),
-                    "doc_index": int(self.chunks[int(idx)]["doc_index"]),
+                    "doc_index": doc_index,
+                    "source": "squad" if doc_index < CONFIG.dataset_corpus_limit else "local",
+                    "query_intent": intent,
                 }
             )
 
@@ -196,6 +232,7 @@ class RAGEngine:
 
     def answer(self, question: str, top_k: int | None = None) -> dict:
         hits = self.retrieve(question, top_k=top_k)
+        query_intent = hits[0]["query_intent"] if hits else self._detect_query_intent(question)
 
         best_answer = ""
         best_answer_score = 0.0
@@ -213,6 +250,7 @@ class RAGEngine:
 
         return {
             "question": question,
+            "query_intent": query_intent,
             "answer": best_answer,
             "answer_score": best_answer_score,
             "answer_source_index": best_context_idx,
