@@ -59,6 +59,7 @@ class RAGEngine:
         self.chunk_tfidf_matrix = self.vectorizer.fit_transform([chunk["text"] for chunk in self.chunks])
         self.chunk_embeddings = self._load_or_create_embeddings(self.chunks)
 
+
     def _chunk_documents(self, documents: list[str]) -> list[dict]:
         chunks = []
         chunk_size = CONFIG.chunk_size_words
@@ -206,12 +207,13 @@ class RAGEngine:
 
         auto_tokenizer = cast(Any, getattr(hf_transformers, "AutoTokenizer"))
         auto_model_seq2seq = cast(Any, getattr(hf_transformers, "AutoModelForSeq2SeqLM"))
+        fallback_model_name = getattr(CONFIG, "fallback_model_name", "google/flan-t5-small")
         self.general_tokenizer = auto_tokenizer.from_pretrained(
-            CONFIG.fallback_model_name,
+            fallback_model_name,
             cache_dir=str(CONFIG.model_cache_dir),
         )
         self.general_model = auto_model_seq2seq.from_pretrained(
-            CONFIG.fallback_model_name,
+            fallback_model_name,
             cache_dir=str(CONFIG.model_cache_dir),
         )
         self.general_model.eval()
@@ -231,9 +233,10 @@ class RAGEngine:
         )
 
         with torch.no_grad():
+            max_new_tokens = int(getattr(CONFIG, "fallback_max_new_tokens", 64))
             output_ids = self.general_model.generate(
                 **encoded,
-                max_new_tokens=CONFIG.fallback_max_new_tokens,
+                max_new_tokens=max_new_tokens,
                 num_beams=2,
                 do_sample=False,
             )
@@ -375,7 +378,8 @@ class RAGEngine:
                 best_context_idx = idx
 
         if best_answer_score < min_confidence:
-            if CONFIG.enable_general_fallback:
+            # Keep backward compatibility when older config versions miss new fallback flags.
+            if bool(getattr(CONFIG, "enable_general_fallback", True)):
                 fallback_answer = self._answer_with_general_model(question)
                 if fallback_answer and not self._answer_looks_unreliable(fallback_answer, "general"):
                     best_answer = fallback_answer
