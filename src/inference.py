@@ -8,6 +8,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import transformers as hf_transformers
+from transformers.pipelines.question_answering import QuestionAnsweringPipeline
 
 from config import CONFIG
 
@@ -33,12 +34,25 @@ class RAGEngine:
         )
 
         qa_pipeline = cast(Any, getattr(hf_transformers, "pipeline"))
-        self.reader = qa_pipeline(
-            "question-answering",
-            model=CONFIG.generator_model_name,
-            tokenizer=CONFIG.generator_model_name,
-            model_kwargs={"cache_dir": str(CONFIG.model_cache_dir)},
-        )
+        try:
+            self.reader = qa_pipeline(
+                "question-answering",
+                model=CONFIG.generator_model_name,
+                tokenizer=CONFIG.generator_model_name,
+                model_kwargs={"cache_dir": str(CONFIG.model_cache_dir)},
+            )
+        except KeyError:
+            auto_tokenizer = cast(Any, getattr(hf_transformers, "AutoTokenizer"))
+            auto_model_qa = cast(Any, getattr(hf_transformers, "AutoModelForQuestionAnswering"))
+            tokenizer = auto_tokenizer.from_pretrained(
+                CONFIG.generator_model_name,
+                cache_dir=str(CONFIG.model_cache_dir),
+            )
+            model = auto_model_qa.from_pretrained(
+                CONFIG.generator_model_name,
+                cache_dir=str(CONFIG.model_cache_dir),
+            )
+            self.reader = QuestionAnsweringPipeline(model=model, tokenizer=tokenizer)
 
         docs = self._data_loader.load_corpus()
         if len(docs) < CONFIG.min_documents:
