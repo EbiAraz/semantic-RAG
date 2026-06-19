@@ -50,7 +50,6 @@ def main() -> None:
 	st.title("Semantic RAG")
 	st.caption("Ask a question and the app retrieves supporting context from SQuAD before answering.")
 
-	engine = get_engine()
 	sample_questions = get_sample_questions()
 
 	with st.sidebar:
@@ -81,6 +80,14 @@ def main() -> None:
 
 	if submit and question.strip():
 		st.session_state["question"] = question.strip()
+		with st.spinner("Loading models and building retrieval cache (first run can take several minutes)..."):
+			try:
+				engine = get_engine()
+			except Exception as exc:
+				st.error("Engine initialization failed. Check Space logs for details.")
+				st.exception(exc)
+				return
+
 		result = engine.answer(question.strip(), top_k=top_k)
 
 		st.subheader("Answer")
@@ -96,6 +103,7 @@ def main() -> None:
 		st.json(result)
 	elif not question.strip():
 		st.info("Type a question or choose one of the examples in the sidebar.")
+		st.caption("The model loads on first question. Initial startup may take a few minutes on CPU Basic.")
 
 
 if __name__ == "__main__":
