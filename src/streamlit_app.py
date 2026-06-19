@@ -59,6 +59,14 @@ def main() -> None:
 		st.write(f"Retrieval mode: {CONFIG.retrieval_mode}")
 		st.write(f"Default top_k: {CONFIG.top_k}")
 		st.divider()
+		st.subheader("Repo Links")
+		st.markdown("- [GitHub Repository](https://github.com/EbiAraz/semantic-RAG)")
+		st.markdown("- [Hugging Face Space](https://huggingface.co/spaces/EbiAraz/semantic-rag)")
+		st.markdown("- [README](https://github.com/EbiAraz/semantic-RAG/blob/main/README.md)")
+		st.markdown("- [app.py](https://github.com/EbiAraz/semantic-RAG/blob/main/app.py)")
+		st.markdown("- [src/inference.py](https://github.com/EbiAraz/semantic-RAG/blob/main/src/inference.py)")
+		st.markdown("- [src/streamlit_app.py](https://github.com/EbiAraz/semantic-RAG/blob/main/src/streamlit_app.py)")
+		st.divider()
 		st.subheader("Sample Questions")
 		for sample_question in sample_questions:
 			if st.button(sample_question, key=f"sample-{sample_question}"):
