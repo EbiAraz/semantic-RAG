@@ -196,7 +196,10 @@ class RAGEngine:
             "what is a transformer model": "A transformer model uses attention mechanisms to model relationships between tokens.",
             "what is bert": "BERT is a transformer-based language model for natural language understanding.",
             "what is the capital of france": "Paris.",
+            "what city is the capital of iran": "Tehran.",
             "who invented relativity": "Albert Einstein.",
+            "what is ai": "AI stands for Artificial Intelligence.",
+            "what is artificial intelligence": "Artificial intelligence is the field of creating systems that perform tasks requiring human-like intelligence.",
         }
         for key, value in shortcuts.items():
             if key in q:
