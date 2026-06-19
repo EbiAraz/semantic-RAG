@@ -1,0 +1,3 @@
+What does RAG stand for?
+What is FAISS used for?
+What city is the capital of Iran?

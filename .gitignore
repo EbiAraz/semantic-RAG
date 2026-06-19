@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+models/
+outputs/
+results/
+
+# Generated local caches
+/data/squad_corpus.json
+/data/squad_questions.json
+/data/squad_chunks.json
+/data/squad_chunk_embeddings.npy
+
+# Local environment files
+.env
+.env.*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

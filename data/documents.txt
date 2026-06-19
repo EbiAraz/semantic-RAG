@@ -1,0 +1,5 @@
+Istanbul is the capital city of Turkey.
+Artificial intelligence helps computers reason about data.
+Python is commonly used for machine learning and data science.
+RAG stands for Retrieval-Augmented Generation.
+FAISS is a library for efficient similarity search.
