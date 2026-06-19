@@ -28,8 +28,11 @@ class RAGConfig:
 	chunk_size_words: int = 80
 	chunk_overlap_words: int = 20
 	retrieval_candidate_k: int = 15
+	retrieval_candidate_k_factual: int = 120
 	rerank_semantic_weight: float = 0.8
 	rerank_lexical_weight: float = 0.2
+	rerank_semantic_weight_factual: float = 0.45
+	rerank_lexical_weight_factual: float = 0.55
 
 	top_k: int = 3
 	max_new_tokens: int = 128

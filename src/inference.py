@@ -148,6 +148,11 @@ class RAGEngine:
             return 0.05
         return 0.0
 
+    def _rerank_weights_for_intent(self, intent: str) -> tuple[float, float]:
+        if intent == "factual":
+            return CONFIG.rerank_semantic_weight_factual, CONFIG.rerank_lexical_weight_factual
+        return CONFIG.rerank_semantic_weight, CONFIG.rerank_lexical_weight
+
     def _min_confidence_for_intent(self, intent: str) -> float:
         if intent == "factual":
             return CONFIG.min_answer_confidence_factual
@@ -192,8 +197,13 @@ class RAGEngine:
 
     def retrieve(self, query: str, top_k: int | None = None) -> list[dict]:
         k = top_k or CONFIG.top_k
-        candidate_k = max(k, CONFIG.retrieval_candidate_k)
         intent = self._detect_query_intent(query)
+        if intent == "factual":
+            candidate_k = max(k, CONFIG.retrieval_candidate_k_factual)
+        else:
+            candidate_k = max(k, CONFIG.retrieval_candidate_k)
+
+        semantic_weight, lexical_weight = self._rerank_weights_for_intent(intent)
         query_embedding = self._encode_texts([query])
         semantic_scores = np.matmul(self.chunk_embeddings, query_embedding[0])
 
@@ -203,11 +213,18 @@ class RAGEngine:
         semantic_top_indices = semantic_scores.argsort()[::-1][:candidate_k]
         lexical_top_indices = lexical_scores.argsort()[::-1][:candidate_k]
         candidate_indices = list(dict.fromkeys(np.concatenate([semantic_top_indices, lexical_top_indices]).tolist()))
+
+        if intent == "factual":
+            candidate_indices = [
+                idx for idx in candidate_indices
+                if int(self.chunks[int(idx)]["doc_index"]) < CONFIG.dataset_corpus_limit
+            ]
+
         reranked = []
         for idx in candidate_indices:
             base_score = (
-                CONFIG.rerank_semantic_weight * float(semantic_scores[idx])
-                + CONFIG.rerank_lexical_weight * float(lexical_scores[idx])
+                semantic_weight * float(semantic_scores[idx])
+                + lexical_weight * float(lexical_scores[idx])
             )
             doc_index = int(self.chunks[int(idx)]["doc_index"])
             score = base_score + self._intent_bonus(intent, doc_index)

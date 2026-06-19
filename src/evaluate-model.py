@@ -6,6 +6,8 @@ import string
 from collections import Counter
 from pathlib import Path
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from config import CONFIG
 from inference import RAGEngine
 
@@ -67,6 +69,7 @@ def build_examples(limit: int) -> list[dict]:
 			{
 				"question": str(row[CONFIG.dataset_question_field]),
 				"answers": [str(answer) for answer in answer_texts],
+				"context": str(row.get(CONFIG.dataset_context_field, "")),
 			}
 		)
 		if len(examples) >= limit:
@@ -75,7 +78,7 @@ def build_examples(limit: int) -> list[dict]:
 	if not examples:
 		questions = data_loader.load_questions()
 		for question in questions[:limit]:
-			examples.append({"question": question, "answers": [question]})
+			examples.append({"question": question, "answers": [question], "context": ""})
 
 	return examples
 
@@ -83,6 +86,23 @@ def build_examples(limit: int) -> list[dict]:
 def evaluate(limit: int, *, top_k: int | None = None) -> dict:
 	engine = RAGEngine()
 	examples = build_examples(limit)
+
+	# Align retrieval corpus to evaluation contexts so the gold answers are reachable.
+	eval_documents = []
+	seen_contexts = set()
+	for example in examples:
+		ctx = example.get("context", "").strip()
+		if not ctx or ctx in seen_contexts:
+			continue
+		seen_contexts.add(ctx)
+		eval_documents.append(ctx)
+
+	if eval_documents:
+		engine.documents = eval_documents
+		engine.chunks = engine._chunk_documents(eval_documents)
+		engine.vectorizer = TfidfVectorizer(stop_words="english")
+		engine.chunk_tfidf_matrix = engine.vectorizer.fit_transform([chunk["text"] for chunk in engine.chunks])
+		engine.chunk_embeddings = engine._encode_texts([chunk["text"] for chunk in engine.chunks])
 
 	results = []
 	em_total = 0.0
@@ -103,6 +123,7 @@ def evaluate(limit: int, *, top_k: int | None = None) -> dict:
 				"question": example["question"],
 				"prediction": pred_text,
 				"gold_answers": answers,
+				"gold_context": example.get("context", ""),
 				"exact_match": em,
 				"f1": f1,
 				"answer_score": prediction["answer_score"],
