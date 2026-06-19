@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import torch
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import transformers as hf_transformers
-from transformers.pipelines.question_answering import QuestionAnsweringPipeline
 
 from config import CONFIG
 
@@ -33,26 +33,17 @@ class RAGEngine:
             cache_folder=str(CONFIG.model_cache_dir),
         )
 
-        qa_pipeline = cast(Any, getattr(hf_transformers, "pipeline"))
-        try:
-            self.reader = qa_pipeline(
-                "question-answering",
-                model=CONFIG.generator_model_name,
-                tokenizer=CONFIG.generator_model_name,
-                model_kwargs={"cache_dir": str(CONFIG.model_cache_dir)},
-            )
-        except KeyError:
-            auto_tokenizer = cast(Any, getattr(hf_transformers, "AutoTokenizer"))
-            auto_model_qa = cast(Any, getattr(hf_transformers, "AutoModelForQuestionAnswering"))
-            tokenizer = auto_tokenizer.from_pretrained(
-                CONFIG.generator_model_name,
-                cache_dir=str(CONFIG.model_cache_dir),
-            )
-            model = auto_model_qa.from_pretrained(
-                CONFIG.generator_model_name,
-                cache_dir=str(CONFIG.model_cache_dir),
-            )
-            self.reader = QuestionAnsweringPipeline(model=model, tokenizer=tokenizer)
+        auto_tokenizer = cast(Any, getattr(hf_transformers, "AutoTokenizer"))
+        auto_model_qa = cast(Any, getattr(hf_transformers, "AutoModelForQuestionAnswering"))
+        self.qa_tokenizer = auto_tokenizer.from_pretrained(
+            CONFIG.generator_model_name,
+            cache_dir=str(CONFIG.model_cache_dir),
+        )
+        self.qa_model = auto_model_qa.from_pretrained(
+            CONFIG.generator_model_name,
+            cache_dir=str(CONFIG.model_cache_dir),
+        )
+        self.qa_model.eval()
 
         docs = self._data_loader.load_corpus()
         if len(docs) < CONFIG.min_documents:
@@ -155,11 +146,57 @@ class RAGEngine:
     def answer(self, question: str, top_k: int | None = None) -> dict:
         hits = self.retrieve(question, top_k=top_k)
         context = "\n".join([item["document"] for item in hits])
-        qa = self.reader(question=question, context=context)
+        encoded = self.qa_tokenizer(
+            question,
+            context,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+
+        with torch.no_grad():
+            outputs = self.qa_model(**encoded)
+
+        start_logits = outputs.start_logits[0]
+        end_logits = outputs.end_logits[0]
+        start_probs = torch.softmax(start_logits, dim=0)
+        end_probs = torch.softmax(end_logits, dim=0)
+
+        token_type_ids = encoded.get("token_type_ids")
+        if token_type_ids is not None:
+            context_positions = (token_type_ids[0] == 1).nonzero(as_tuple=False).view(-1)
+        else:
+            context_positions = torch.arange(start_logits.size(0))
+
+        best_start = int(context_positions[0].item()) if len(context_positions) else 0
+        best_end = best_start
+        best_score = float("-inf")
+        max_span_len = 30
+        candidate_positions = context_positions.tolist() if len(context_positions) else list(range(start_logits.size(0)))
+        input_ids = encoded["input_ids"][0]
+        special_ids = set(self.qa_tokenizer.all_special_ids)
+        valid_positions = [pos for pos in candidate_positions if int(input_ids[pos].item()) not in special_ids]
+        if not valid_positions:
+            valid_positions = candidate_positions
+
+        for s in valid_positions:
+            max_end = min(s + max_span_len, start_logits.size(0) - 1)
+            for e in range(s, max_end + 1):
+                score = float(start_logits[s].item() + end_logits[e].item())
+                if score > best_score:
+                    best_score = score
+                    best_start = s
+                    best_end = e
+
+        answer = self.qa_tokenizer.decode(
+            input_ids[best_start:best_end + 1],
+            skip_special_tokens=True,
+        ).strip()
+        answer_score = float((start_probs[best_start] * end_probs[best_end]).item())
 
         return {
             "question": question,
-            "answer": qa.get("answer", "").strip(),
-            "answer_score": float(qa.get("score", 0.0)),
+            "answer": answer,
+            "answer_score": answer_score,
             "context": hits,
         }
