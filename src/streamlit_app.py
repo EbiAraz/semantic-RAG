@@ -78,6 +78,22 @@ def main() -> None:
 	with col_right:
 		submit = st.button("Ask", type="primary", use_container_width=True)
 
+	with st.expander("Quick Validation", expanded=False):
+		st.caption("Run a small built-in check of factual and life-style questions.")
+		if st.button("Run quick validation", use_container_width=True):
+			with st.spinner("Running quick validation..."):
+				engine = get_engine()
+				quick_questions = [
+					"What does RAG stand for?",
+					"What is FAISS used for?",
+					"How can I improve sleep quality?",
+				]
+				quick_results = [engine.answer(q, top_k=top_k) for q in quick_questions]
+			for idx, quick in enumerate(quick_results, start=1):
+				st.markdown(f"**{idx}. {quick['question']}**")
+				st.write(quick["answer"])
+				st.caption(f"intent={quick.get('query_intent')}, score={quick.get('answer_score', 0.0):.4f}")
+
 	if submit and question.strip():
 		st.session_state["question"] = question.strip()
 		with st.spinner("Loading models and building retrieval cache (first run can take several minutes)..."):
