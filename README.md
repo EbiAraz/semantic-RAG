@@ -55,6 +55,10 @@ python src/evaluate-model.py --fast
 ```
 
 ```powershell
+python src/smoke-test.py
+```
+
+```powershell
 streamlit run src/streamlit_app.py
 ```
 
@@ -79,6 +83,7 @@ python run_pipeline.py --fast-evaluate
 - Outputs from batch mode are written to `outputs/batch_predictions.jsonl`.
 - Evaluation reports are written to `outputs/evaluation_report.json`.
 - `python src/evaluate-model.py --fast` is the quickest way to sanity-check quality after retrieval changes.
+- `python src/smoke-test.py` runs a practical end-to-end check with factual, general, and life-style prompts.
 - The Streamlit app provides a browser UI for asking questions and inspecting retrieved context.
 - `python app.py` is a convenient root-level launcher for the Streamlit UI.
 - `python run_pipeline.py` runs preprocessing, batch prediction, and evaluation in sequence.

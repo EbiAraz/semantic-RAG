@@ -201,6 +201,38 @@ class RAGEngine:
                 return value
         return None
 
+    def _general_shortcut(self, question: str) -> str | None:
+        q = question.lower().strip()
+        normalized = re.sub(r"[^a-z0-9\s']", "", q)
+
+        greeting_map = {
+            "hi": "Hello. Ask me any question and I will do my best to answer clearly.",
+            "hello": "Hello. Ask me any question and I will do my best to answer clearly.",
+            "hey": "Hi. I can help with factual questions and everyday advice.",
+            "thanks": "You are welcome.",
+            "thank you": "You are welcome.",
+        }
+        if normalized in greeting_map:
+            return greeting_map[normalized]
+
+        distress_signals = [
+            "not good",
+            "i feel bad",
+            "im stressed",
+            "i am stressed",
+            "im anxious",
+            "i am anxious",
+            "im sad",
+            "i am sad",
+        ]
+        if any(signal in normalized for signal in distress_signals):
+            return (
+                "Sorry you are feeling this way. Try one small reset now: drink water, take 10 slow breaths, "
+                "and do one easy task for 5 minutes. If you want, I can suggest a short plan for today."
+            )
+
+        return None
+
     def _load_general_fallback_model(self) -> None:
         if self.general_model is not None and self.general_tokenizer is not None:
             return
@@ -225,12 +257,11 @@ class RAGEngine:
             "If uncertain, provide the most likely answer and keep it concise.\n"
             f"Question: {question}\nAnswer:"
         )
-        encoded = self.general_tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=True,
-            max_length=256,
-        )
+        encoded = self.general_tokenizer(prompt,
+                                        return_tensors="pt",
+                                        truncation=True,
+                                        max_length=256,
+                                        )
 
         with torch.no_grad():
             max_new_tokens = int(getattr(CONFIG, "fallback_max_new_tokens", 64))
@@ -347,9 +378,21 @@ class RAGEngine:
         return answer, confidence
 
     def answer(self, question: str, top_k: int | None = None) -> dict:
-        hits = self.retrieve(question, top_k=top_k)
-        query_intent = hits[0]["query_intent"] if hits else self._detect_query_intent(question)
+        query_intent = self._detect_query_intent(question)
         min_confidence = self._min_confidence_for_intent(query_intent)
+
+        general_shortcut = self._general_shortcut(question)
+        if general_shortcut is not None:
+            return {
+                "question": question,
+                "query_intent": query_intent,
+                "min_confidence": min_confidence,
+                "answer": general_shortcut,
+                "answer_score": 0.95,
+                "answer_source_index": -1,
+                "answer_mode": "general_shortcut",
+                "context": [],
+            }
 
         shortcut_answer = self._definition_shortcut(question)
         if shortcut_answer is not None and query_intent in {"definition", "factual"}:
@@ -361,8 +404,13 @@ class RAGEngine:
                 "answer_score": 0.999,
                 "answer_source_index": -1,
                 "answer_mode": "shortcut",
-                "context": hits,
+                "context": [],
             }
+
+        hits = self.retrieve(question, top_k=top_k)
+        if hits:
+            query_intent = hits[0]["query_intent"]
+            min_confidence = self._min_confidence_for_intent(query_intent)
 
         best_answer = ""
         best_answer_score = 0.0

@@ -25,6 +25,9 @@ class RAGConfig:
 	embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
 	# Tuned QA reader model from Hugging Face with a practical download size.
 	generator_model_name: str = "deepset/minilm-uncased-squad2"
+	fallback_model_name: str = "google/flan-t5-small"
+	fallback_max_new_tokens: int = 64
+	enable_general_fallback: bool = True
 	chunk_size_words: int = 80
 	chunk_overlap_words: int = 20
 	retrieval_candidate_k: int = 15

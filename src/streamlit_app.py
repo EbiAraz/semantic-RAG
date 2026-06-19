@@ -122,6 +122,7 @@ def main() -> None:
 		with intent_col:
 			st.caption(f"Intent: {result.get('query_intent', 'general')}")
 			st.caption(f"Min confidence: {result.get('min_confidence', 0.0):.3f}")
+			st.caption(f"Answer mode: {result.get('answer_mode', 'retrieval')}")
 		with source_col:
 			squad_count = sum(1 for item in result["context"] if item.get("source") == "squad")
 			local_count = sum(1 for item in result["context"] if item.get("source") == "local")
