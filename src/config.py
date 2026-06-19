@@ -34,6 +34,7 @@ class RAGConfig:
 	top_k: int = 3
 	max_new_tokens: int = 128
 	min_documents: int = 3
+	min_answer_confidence: float = 0.02
 
 
 CONFIG = RAGConfig()

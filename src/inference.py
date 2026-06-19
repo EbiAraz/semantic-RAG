@@ -143,9 +143,7 @@ class RAGEngine:
         reranked.sort(key=lambda item: item["score"], reverse=True)
         return reranked[:k]
 
-    def answer(self, question: str, top_k: int | None = None) -> dict:
-        hits = self.retrieve(question, top_k=top_k)
-        context = "\n".join([item["document"] for item in hits])
+    def _predict_answer_for_context(self, question: str, context: str) -> tuple[str, float]:
         encoded = self.qa_tokenizer(
             question,
             context,
@@ -172,6 +170,7 @@ class RAGEngine:
         best_end = best_start
         best_score = float("-inf")
         max_span_len = 30
+
         candidate_positions = context_positions.tolist() if len(context_positions) else list(range(start_logits.size(0)))
         input_ids = encoded["input_ids"][0]
         special_ids = set(self.qa_tokenizer.all_special_ids)
@@ -192,11 +191,26 @@ class RAGEngine:
             input_ids[best_start:best_end + 1],
             skip_special_tokens=True,
         ).strip()
-        answer_score = float((start_probs[best_start] * end_probs[best_end]).item())
+        confidence = float((start_probs[best_start] * end_probs[best_end]).item())
+        return answer, confidence
+
+    def answer(self, question: str, top_k: int | None = None) -> dict:
+        hits = self.retrieve(question, top_k=top_k)
+
+        best_answer = ""
+        best_answer_score = 0.0
+        for item in hits:
+            candidate_answer, candidate_score = self._predict_answer_for_context(question, item["document"])
+            if candidate_score > best_answer_score and candidate_answer:
+                best_answer = candidate_answer
+                best_answer_score = candidate_score
+
+        if best_answer_score < CONFIG.min_answer_confidence:
+            best_answer = "I could not find a reliable answer in the retrieved context."
 
         return {
             "question": question,
-            "answer": answer,
-            "answer_score": answer_score,
+            "answer": best_answer,
+            "answer_score": best_answer_score,
             "context": hits,
         }
