@@ -70,7 +70,19 @@ def preprocess(limit: int | None = None) -> dict:
 	corpus_limit = limit or CONFIG.dataset_corpus_limit
 	question_limit = limit or CONFIG.dataset_question_limit
 
+	# Load SQuAD corpus
 	corpus = data_loader.load_corpus_from_dataset(limit=corpus_limit)
+	
+	# Load local documents and combine with SQuAD
+	local_docs_path = Path(__file__).parent.parent / "data" / "documents.txt"
+	local_docs = data_loader.load_local_documents(local_docs_path)
+	print(f"Loaded {len(local_docs)} sentences from local documents.txt")
+	print(f"Loaded {len(corpus)} passages from SQuAD dataset")
+	
+	# Combine both sources
+	corpus.extend(local_docs)
+	print(f"Total corpus size: {len(corpus)} documents")
+	
 	questions = data_loader.load_questions_from_dataset(limit=question_limit)
 	chunks = _chunk_documents(corpus)
 	embeddings = _encode_chunks(chunks)
