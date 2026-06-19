@@ -102,9 +102,19 @@ def main() -> None:
 			else:
 				st.warning("Low confidence - no reliable source")
 
+		intent_col, source_col = st.columns([1, 1])
+		with intent_col:
+			st.caption(f"Intent: {result.get('query_intent', 'general')}")
+			st.caption(f"Min confidence: {result.get('min_confidence', 0.0):.3f}")
+		with source_col:
+			squad_count = sum(1 for item in result["context"] if item.get("source") == "squad")
+			local_count = sum(1 for item in result["context"] if item.get("source") == "local")
+			st.caption(f"Top-{len(result['context'])} sources: squad={squad_count}, local={local_count}")
+
 		st.subheader("Retrieved Context")
 		for idx, item in enumerate(result["context"]):
 			with st.expander(f"Chunk #{idx + 1} - Score {item['score']:.4f}"):
+				st.caption(f"source={item.get('source', 'unknown')}, bonus={item.get('intent_bonus', 0.0):.4f}")
 				st.write(item["document"])
 
 		st.subheader("Debug Output")

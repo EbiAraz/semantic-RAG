@@ -35,6 +35,11 @@ class RAGConfig:
 	max_new_tokens: int = 128
 	min_documents: int = 3
 	min_answer_confidence: float = 0.01
+	min_answer_confidence_factual: float = 0.03
+	min_answer_confidence_definition: float = 0.01
+	min_answer_confidence_life: float = 0.008
+	min_answer_confidence_general: float = 0.015
+	max_answer_words_factual: int = 12
 
 
 CONFIG = RAGConfig()

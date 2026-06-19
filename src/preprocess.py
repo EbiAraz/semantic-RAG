@@ -65,6 +65,21 @@ def _chunk_documents(documents: list[str]) -> list[dict]:
 	return chunks
 
 
+def _seed_knowledge_documents() -> list[str]:
+	return [
+		"RAG stands for Retrieval-Augmented Generation.",
+		"FAISS is a library used for efficient vector similarity search and nearest-neighbor retrieval.",
+		"BERT is a transformer-based language model developed by Google for natural language understanding.",
+		"A transformer model uses attention mechanisms to process relationships between tokens.",
+		"Semantic search retrieves documents by meaning instead of exact keyword matching.",
+		"Machine learning is a field of artificial intelligence where systems learn patterns from data.",
+		"Deep learning is a subset of machine learning that uses multi-layer neural networks.",
+		"Natural language processing is the branch of AI focused on understanding and generating human language.",
+		"Vector embeddings are numeric representations that capture semantic meaning of text.",
+		"Transfer learning reuses a pre-trained model and adapts it to a new task.",
+	]
+
+
 def preprocess(limit: int | None = None) -> dict:
 	data_loader = _load_data_loader_module()
 	corpus_limit = limit or CONFIG.dataset_corpus_limit
@@ -76,10 +91,13 @@ def preprocess(limit: int | None = None) -> dict:
 	# Load local documents and combine with SQuAD
 	local_docs_path = Path(__file__).parent.parent / "data" / "documents.txt"
 	local_docs = data_loader.load_local_documents(local_docs_path)
+	seed_docs = _seed_knowledge_documents()
 	print(f"Loaded {len(local_docs)} sentences from local documents.txt")
+	print(f"Loaded {len(seed_docs)} seed knowledge sentences")
 	print(f"Loaded {len(corpus)} passages from SQuAD dataset")
 	
 	# Combine both sources
+	corpus.extend(seed_docs)
 	corpus.extend(local_docs)
 	print(f"Total corpus size: {len(corpus)} documents")
 	

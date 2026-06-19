@@ -23,3 +23,6 @@ results/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local nested clone accidentally created during testing
+semantic-rag/

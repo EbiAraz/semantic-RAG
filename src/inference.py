@@ -118,6 +118,8 @@ class RAGEngine:
         q = query.lower().strip()
         factual_patterns = [
             r"^(what|who|when|where|which)\b",
+        ]
+        definition_patterns = [
             r"\b(define|definition|stand for|meaning)\b",
         ]
         life_patterns = [
@@ -128,6 +130,8 @@ class RAGEngine:
 
         if any(re.search(pattern, q) for pattern in life_patterns):
             return "life"
+        if any(re.search(pattern, q) for pattern in definition_patterns):
+            return "definition"
         if any(re.search(pattern, q) for pattern in factual_patterns):
             return "factual"
         return "general"
@@ -136,11 +140,42 @@ class RAGEngine:
         squad_limit = CONFIG.dataset_corpus_limit
         is_squad = doc_index < squad_limit
 
+        if intent == "definition" and not is_squad:
+            return 0.06
         if intent == "factual" and is_squad:
-            return 0.05
+            return 0.04
         if intent == "life" and not is_squad:
             return 0.05
         return 0.0
+
+    def _min_confidence_for_intent(self, intent: str) -> float:
+        if intent == "factual":
+            return CONFIG.min_answer_confidence_factual
+        if intent == "definition":
+            return CONFIG.min_answer_confidence_definition
+        if intent == "life":
+            return CONFIG.min_answer_confidence_life
+        return CONFIG.min_answer_confidence_general
+
+    def _answer_looks_unreliable(self, answer: str, intent: str) -> bool:
+        normalized = answer.strip()
+        if not normalized:
+            return True
+
+        words = normalized.split()
+        if intent in {"factual", "definition"} and len(words) < 2:
+            return True
+        if intent in {"factual", "definition"} and len(words) > CONFIG.max_answer_words_factual:
+            return True
+
+        if len(normalized) <= 1:
+            return True
+
+        low_signal = {"the", "a", "an", "of", "and"}
+        if normalized.lower() in low_signal:
+            return True
+
+        return False
 
     def retrieve(self, query: str, top_k: int | None = None) -> list[dict]:
         k = top_k or CONFIG.top_k
@@ -153,8 +188,10 @@ class RAGEngine:
         lexical_scores = cosine_similarity(query_tfidf, self.chunk_tfidf_matrix).ravel()
 
         semantic_top_indices = semantic_scores.argsort()[::-1][:candidate_k]
+        lexical_top_indices = lexical_scores.argsort()[::-1][:candidate_k]
+        candidate_indices = list(dict.fromkeys(np.concatenate([semantic_top_indices, lexical_top_indices]).tolist()))
         reranked = []
-        for idx in semantic_top_indices:
+        for idx in candidate_indices:
             base_score = (
                 CONFIG.rerank_semantic_weight * float(semantic_scores[idx])
                 + CONFIG.rerank_lexical_weight * float(lexical_scores[idx])
@@ -233,24 +270,28 @@ class RAGEngine:
     def answer(self, question: str, top_k: int | None = None) -> dict:
         hits = self.retrieve(question, top_k=top_k)
         query_intent = hits[0]["query_intent"] if hits else self._detect_query_intent(question)
+        min_confidence = self._min_confidence_for_intent(query_intent)
 
         best_answer = ""
         best_answer_score = 0.0
         best_context_idx = 0
         for idx, item in enumerate(hits):
             candidate_answer, candidate_score = self._predict_answer_for_context(question, item["document"])
+            if self._answer_looks_unreliable(candidate_answer, query_intent):
+                continue
             if candidate_score > best_answer_score and candidate_answer:
                 best_answer = candidate_answer
                 best_answer_score = candidate_score
                 best_context_idx = idx
 
-        if best_answer_score < CONFIG.min_answer_confidence:
+        if best_answer_score < min_confidence:
             best_answer = "I could not find a reliable answer in the retrieved context."
             best_context_idx = -1
 
         return {
             "question": question,
             "query_intent": query_intent,
+            "min_confidence": min_confidence,
             "answer": best_answer,
             "answer_score": best_answer_score,
             "answer_source_index": best_context_idx,
