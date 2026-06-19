@@ -199,18 +199,22 @@ class RAGEngine:
 
         best_answer = ""
         best_answer_score = 0.0
-        for item in hits:
+        best_context_idx = 0
+        for idx, item in enumerate(hits):
             candidate_answer, candidate_score = self._predict_answer_for_context(question, item["document"])
             if candidate_score > best_answer_score and candidate_answer:
                 best_answer = candidate_answer
                 best_answer_score = candidate_score
+                best_context_idx = idx
 
         if best_answer_score < CONFIG.min_answer_confidence:
             best_answer = "I could not find a reliable answer in the retrieved context."
+            best_context_idx = -1
 
         return {
             "question": question,
             "answer": best_answer,
             "answer_score": best_answer_score,
+            "answer_source_index": best_context_idx,
             "context": hits,
         }

@@ -92,11 +92,19 @@ def main() -> None:
 
 		st.subheader("Answer")
 		st.write(result["answer"] or "No answer returned.")
-		st.metric("Confidence", f"{result['answer_score']:.4f}")
+		col1, col2 = st.columns([1, 1])
+		with col1:
+			st.metric("Confidence", f"{result['answer_score']:.4f}")
+		with col2:
+			source_idx = result.get("answer_source_index", -1)
+			if source_idx >= 0:
+				st.info(f"Source: Retrieved chunk #{source_idx + 1}")
+			else:
+				st.warning("Low confidence - no reliable source")
 
 		st.subheader("Retrieved Context")
-		for item in result["context"]:
-			with st.expander(f"Score {item['score']:.4f}"):
+		for idx, item in enumerate(result["context"]):
+			with st.expander(f"Chunk #{idx + 1} - Score {item['score']:.4f}"):
 				st.write(item["document"])
 
 		st.subheader("Debug Output")
