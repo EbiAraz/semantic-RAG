@@ -13,6 +13,19 @@ pinned: false
 
 This project is a lightweight Retrieval-Augmented Generation demo.
 
+## Use the UI
+
+- Live Streamlit app: https://ebiaraz-semantic-rag.hf.space/
+- Hugging Face Space page: https://huggingface.co/spaces/EbiAraz/semantic-rag
+
+Run locally:
+
+```powershell
+streamlit run src/streamlit_app.py
+```
+
+Then open http://localhost:8501
+
 ## What it does
 
 - Downloads a Hugging Face QA dataset instead of using only hand-written documents.
